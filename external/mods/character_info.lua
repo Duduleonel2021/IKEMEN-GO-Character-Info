@@ -1,40 +1,27 @@
--- ============================================================
--- CHARACTER INFO - SFF PER CHARACTER
+-- CHARACTER INFO - SHARED SFF
 -- IKEMEN GO v1.0.0-rc.3
--- ============================================================
 --
--- FUNÇÃO:
---   No Select Character, deixe o cursor sobre o personagem e
---   pressione X.
+-- All character cards are stored in ONE SFF:
+-- external/mods/character_info.sff
 --
---   O módulo identifica o personagem selecionado e abre:
---
---     external/mods/characters/<char>/<char>-info.sff
---
---   Exemplo:
---
---     KFM -> characters/kfm/kfm-info.sff
---     RYU -> characters/ryu/ryu-info.sff
---     KEN -> characters/ken/ken-info.sff
---
--- O SFF contém TODA a ficha visual em um único sprite.
--- Não existe leitura de character_info.def.
--- Não existe texto desenhado pelo Lua.
---
--- X abre.
--- X fecha.
---
--- A ficha é desenhada em LAYER 2.
---
--- A lógica de entrada é baseada diretamente na versão anterior
--- funcional do módulo: start.f_selectMenu.
--- ============================================================
+-- Add characters by registering their sprite index in charIndex.
+-- No characters folder is required.
+
+local logPath = 'external/mods/character_info_debug.log'
+
+local function dlog(msg)
+    print(msg)
+    local ok, f = pcall(io.open, logPath, 'a')
+    if ok and f then
+        f:write(tostring(msg) .. '\n')
+        f:close()
+    end
+end
 
 local cis = {
     key = 'x',
+    sffPath = 'external/mods/character_info.sff',
 
-    -- Geometria do painel (mesmos valores da versão anterior
-    -- funcional), usada para posicionar a ficha na tela.
     panel = {
         width = 330,
         height = 450,
@@ -42,35 +29,56 @@ local cis = {
         margin = 35,
     },
 
-    open = {
-        false,
-        false,
-    },
-
-    ref = {
-        nil,
-        nil,
-    },
-
-    char = {
-        nil,
-        nil,
-    },
-
-    sff = {
-        nil,
-        nil,
-    },
-
-    anim = {
-        nil,
-        nil,
-    },
+    open = {false, false},
+    ref = {nil, nil},
+    char = {nil, nil},
+    anim = {nil, nil},
 }
 
--- ============================================================
--- LOCALCOORD
--- ============================================================
+-- Character identifier -> sprite index in GROUP 0.
+--
+-- The identifier is the filename of the character .def, without ".def".
+-- The folder structure is ignored.
+--
+-- Examples:
+--   chars/kfm/kfm.def
+--       -> kfm = 1
+--
+--   chars/A-ryu/A-ryu.def
+--       -> ['a-ryu'] = 2
+--
+--   chars/Anime/CDZ/Seiya/Seiya.def
+--       -> seiya = 3
+--
+--   chars/Capcom/StreetFighter/Ryu/Ryu.def
+--       -> ryu = 4
+--
+-- All cards are stored in:
+-- external/mods/character_info.sff
+local charIndex = {
+    kfm = 1,
+    ['a-ryu'] = 2,
+seiya=3
+
+    -- Add new characters here:
+    -- seiya = 3,
+    -- ryu = 4,
+    -- ken = 5,
+}
+
+local sharedSff = nil
+
+if fileExists(cis.sffPath) then
+    sharedSff = sffNew(cis.sffPath)
+
+    if sharedSff then
+        dlog('[CharacterInfo] Shared SFF loaded: ' .. cis.sffPath)
+    else
+        dlog('[CharacterInfo] ERROR: sffNew failed: ' .. cis.sffPath)
+    end
+else
+    dlog('[CharacterInfo] ERROR: SFF not found: ' .. cis.sffPath)
+end
 
 local function localcoord()
     if motif
@@ -79,16 +87,11 @@ local function localcoord()
         and motif.info.localcoord[1]
         and motif.info.localcoord[2]
     then
-        return
-            motif.info.localcoord[1],
-            motif.info.localcoord[2]
+        return motif.info.localcoord[1], motif.info.localcoord[2]
     end
-
     return 1280, 720
 end
 
--- Calcula a posição X do painel: P1 fica com margem na
--- esquerda, P2 fica com margem na direita (espelhado).
 local function panelX(side)
     local w = localcoord()
 
@@ -98,10 +101,6 @@ local function panelX(side)
 
     return w - cis.panel.margin - cis.panel.width
 end
-
--- ============================================================
--- GET CHARACTER DATA
--- ============================================================
 
 local function getSelectedRef(player)
     if player == nil then
@@ -115,6 +114,16 @@ local function getSelectedRef(player)
     return start.c[player].selRef
 end
 
+-- Extract the character identifier from the DEF path used by select.def.
+--
+-- Examples:
+--   kfm.def                           -> kfm
+--   A-ryu/A-ryu.def                   -> a-ryu
+--   Anime/CDZ/Seiya/Seiya.def         -> seiya
+--   Capcom/StreetFighter/Ryu/Ryu.def  -> ryu
+--
+-- The folder structure does not matter. The filename of the .def file
+-- becomes the character identifier used in charIndex.
 local function getCharacterName(ref)
     if ref == nil then
         return nil
@@ -126,19 +135,28 @@ local function getCharacterName(ref)
         return nil
     end
 
-    if cd.char == nil then
+    local raw = cd.char or cd.def
+
+    if raw == nil then
         return nil
     end
 
-    return tostring(cd.char):lower()
+    raw = tostring(raw)
+    raw = raw:gsub('\\', '/')
+
+    -- Get only the final filename.
+    local filename = raw:match('([^/]+)$') or raw
+
+    -- Remove the .def extension.
+    local char = filename:gsub('%.def$', ''):lower()
+
+    dlog('[CharacterInfo] DEF path: ' .. raw)
+    dlog('[CharacterInfo] Character identifier: ' .. char)
+
+    return char
 end
 
--- ============================================================
--- LOAD SFF
--- ============================================================
-
 local function clearSkin(side)
-    cis.sff[side] = nil
     cis.anim[side] = nil
     cis.char[side] = nil
 end
@@ -146,106 +164,65 @@ end
 local function loadSkin(side, player)
     clearSkin(side)
 
-    local ref =
-        getSelectedRef(player)
+    if sharedSff == nil then
+        dlog('[CharacterInfo] Aborted: shared SFF is not loaded.')
+        return false
+    end
+
+    local ref = getSelectedRef(player)
 
     if ref == nil then
+        dlog('[CharacterInfo] No selected character reference for P' .. tostring(side))
         return false
     end
 
-    local char =
-        getCharacterName(ref)
+    local char = getCharacterName(ref)
 
-    if char == nil
-        or char == ''
-        or char == 'randomselect'
-    then
+    if char == nil or char == '' or char == 'randomselect' then
+        dlog('[CharacterInfo] Invalid character for P' .. tostring(side))
         return false
     end
 
-    local path =
-        'external/mods/characters/'
-        .. char
-        .. '/'
-        .. char
-        .. '-info.sff'
+    dlog('[CharacterInfo] Character detected: ' .. char .. ' - P' .. tostring(side))
 
-    -- Use the same file-existence mechanism used by the
-    -- current IKEMEN GO source.
-    if main
-        and main.f_fileExists
-        and not main.f_fileExists(path)
-    then
+    local index = charIndex[char]
+
+    if index == nil then
+        dlog('[CharacterInfo] No card registered for identifier: ' .. char)
+        dlog('[CharacterInfo] Add this character to charIndex with its SFF sprite index.')
         return false
     end
 
-    local sff =
-        sffNew(path)
+    dlog('[CharacterInfo] Card mapping: ' .. char .. ' -> group 0, index ' .. tostring(index))
 
-    if sff == nil then
-        return false
-    end
-
-    -- One single sprite: group 0 / index 0.
-    local anim =
-        animNew(
-            sff,
-            '0,0, 0,0, -1'
-        )
+    local animDef = '0,' .. tostring(index) .. ', 0,0, -1'
+    local anim = animNew(sharedSff, animDef)
 
     if anim == nil then
+        dlog('[CharacterInfo] Failed to create sprite: ' .. animDef .. ' for ' .. char)
         return false
     end
 
-    local w, h =
-        localcoord()
+    local w, h = localcoord()
 
-    animSetLocalcoord(
-        anim,
-        w,
-        h
-    )
-
-    animSetScale(
-        anim,
-        1,
-        1
-    )
-
-    -- IMPORTANT:
-    -- The character information must be in front of the
-    -- character select portraits.
-    animSetLayerno(
-        anim,
-        2
-    )
-
-    animSetFacing(
-        anim,
-        1
-    )
-
-    animSetPos(
-        anim,
-        panelX(side),
-        cis.panel.y
-    )
-
+    animSetLocalcoord(anim, w, h)
+    animSetScale(anim, 1, 1)
+    animSetLayerno(anim, 2)
+    animSetFacing(anim, 1)
+    animSetPos(anim, panelX(side), cis.panel.y)
     animUpdate(anim)
 
     cis.ref[side] = ref
     cis.char[side] = char
-    cis.sff[side] = sff
     cis.anim[side] = anim
+
+    dlog('[CharacterInfo] Card loaded: ' .. char .. ' (index ' .. tostring(index) .. ') - P' .. tostring(side))
 
     return true
 end
 
--- ============================================================
--- OPEN / CLOSE
--- ============================================================
-
 local function openInfo(side, player)
+    dlog('[CharacterInfo] X detected - side ' .. tostring(side))
 
     if loadSkin(side, player) then
         cis.open[side] = true
@@ -256,135 +233,89 @@ local function closeInfo(side)
     cis.open[side] = false
     cis.ref[side] = nil
     clearSkin(side)
+    dlog('[CharacterInfo] Card closed - P' .. tostring(side))
 end
 
--- ============================================================
--- INPUT
--- ============================================================
---
--- O IKEMEN chama:
---
--- start.f_selectMenu(
---     side,
---     v.cmd,
---     v.player,
---     member,
---     v.selectState
--- )
---
--- Portanto, o primeiro argumento depois de side é o COMMAND
--- do jogador. A versão anterior usava player em getInput();
--- aqui aceitamos os dois formatos para manter compatibilidade.
--- ============================================================
-
-local originalSelectMenu =
-    start.f_selectMenu
+local originalSelectMenu = start.f_selectMenu
 
 local function infoPressed(cmd, player)
-    -- Forma correta para o fluxo atual do Select Screen.
-    if cmd ~= nil
-        and getInput(
-            cmd,
-            cis.key
-        )
-    then
-        return true
+    if cmd ~= nil then
+        local ok, result = pcall(getInput, cmd, cis.key)
+        if ok and result then
+            return true
+        end
     end
 
-    -- Compatibilidade com a implementação anterior funcional.
-    if player ~= nil
-        and getInput(
-            player,
-            cis.key
-        )
-    then
-        return true
+    if player ~= nil then
+        local ok, result = pcall(getInput, player, cis.key)
+        if ok and result then
+            return true
+        end
     end
 
     return false
 end
 
-start.f_selectMenu =
-    function(
+start.f_selectMenu = function(side, cmd, player, member, selectState)
+
+    if cis.open[side] then
+
+        if infoPressed(cmd, player) then
+            closeInfo(side)
+            return selectState, false
+        end
+
+        if cmd ~= nil
+            and motif
+            and motif.select_info
+            and motif.select_info.cancel
+        then
+            local ok, result = pcall(
+                getInput,
+                cmd,
+                motif.select_info.cancel.key
+            )
+
+            if ok and result then
+                closeInfo(side)
+                return selectState, false
+            end
+        end
+
+        return selectState, false
+    end
+
+    if infoPressed(cmd, player) then
+        openInfo(side, player)
+        return selectState, false
+    end
+
+    return originalSelectMenu(
         side,
         cmd,
         player,
         member,
         selectState
     )
-        -- Ficha aberta: X fecha e bloqueia a seleção naquele frame.
-        if cis.open[side] then
-            if infoPressed(cmd, player)
-                or getInput(
-                    cmd,
-                    motif.select_info.cancel.key
-                )
-            then
-                closeInfo(side)
-            end
-
-            return selectState, false
-        end
-
-        -- Ficha fechada: X abre.
-        if infoPressed(cmd, player) then
-            openInfo(
-                side,
-                player
-            )
-
-            return selectState, false
-        end
-
-        -- Qualquer outro comando continua exatamente com
-        -- o Select Character original.
-        return originalSelectMenu(
-            side,
-            cmd,
-            player,
-            member,
-            selectState
-        )
-    end
-
--- ============================================================
--- DRAW
--- ============================================================
+end
 
 local function drawInfo(side)
     if not cis.open[side] then
         return
     end
 
-    local anim =
-        cis.anim[side]
+    local anim = cis.anim[side]
 
     if anim == nil then
         return
     end
 
-    -- O sprite já contém o layout completo.
-    -- Não existe painel Lua, texto Lua ou portrait Lua.
-    animSetLayerno(
-        anim,
-        2
-    )
-
-    animSetPos(
-        anim,
-        panelX(side),
-        cis.panel.y
-    )
-
+    animSetLayerno(anim, 2)
+    animSetPos(anim, panelX(side), cis.panel.y)
     animUpdate(anim)
-
-    animDraw(
-        anim,
-        2
-    )
+    animDraw(anim, 2)
 end
 
--- start.f_selectScreen chama este hook todos os frames.
 hook.add(
     'start.f_selectScreen',
     'characterInfoSFF',
@@ -394,10 +325,6 @@ hook.add(
     end
 )
 
--- ============================================================
--- RESET
--- ============================================================
-
 hook.add(
     'start.f_selectReset',
     'characterInfoSFFReset',
@@ -406,3 +333,7 @@ hook.add(
         closeInfo(2)
     end
 )
+
+dlog('[CharacterInfo] Shared SFF version loaded')
+dlog('[CharacterInfo] SFF: ' .. cis.sffPath)
+dlog('[CharacterInfo] Registered cards: kfm=1, a-ryu=2')
