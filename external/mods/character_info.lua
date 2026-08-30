@@ -7,17 +7,6 @@
 -- Add characters by registering their sprite index in charIndex.
 -- No characters folder is required.
 
-local logPath = 'external/mods/character_info_debug.log'
-
-local function dlog(msg)
-    print(msg)
-    local ok, f = pcall(io.open, logPath, 'a')
-    if ok and f then
-        f:write(tostring(msg) .. '\n')
-        f:close()
-    end
-end
-
 local cis = {
     key = 'x',
     sffPath = 'external/mods/character_info.sff',
@@ -55,13 +44,13 @@ local cis = {
 --
 -- All cards are stored in:
 -- external/mods/character_info.sff
+
 local charIndex = {
     kfm = 1,
     ['a-ryu'] = 2,
-seiya=3
+    seiya = 3,
 
     -- Add new characters here:
-    -- seiya = 3,
     -- ryu = 4,
     -- ken = 5,
 }
@@ -70,14 +59,6 @@ local sharedSff = nil
 
 if fileExists(cis.sffPath) then
     sharedSff = sffNew(cis.sffPath)
-
-    if sharedSff then
-        dlog('[CharacterInfo] Shared SFF loaded: ' .. cis.sffPath)
-    else
-        dlog('[CharacterInfo] ERROR: sffNew failed: ' .. cis.sffPath)
-    end
-else
-    dlog('[CharacterInfo] ERROR: SFF not found: ' .. cis.sffPath)
 end
 
 local function localcoord()
@@ -89,6 +70,7 @@ local function localcoord()
     then
         return motif.info.localcoord[1], motif.info.localcoord[2]
     end
+
     return 1280, 720
 end
 
@@ -124,6 +106,7 @@ end
 --
 -- The folder structure does not matter. The filename of the .def file
 -- becomes the character identifier used in charIndex.
+
 local function getCharacterName(ref)
     if ref == nil then
         return nil
@@ -150,9 +133,6 @@ local function getCharacterName(ref)
     -- Remove the .def extension.
     local char = filename:gsub('%.def$', ''):lower()
 
-    dlog('[CharacterInfo] DEF path: ' .. raw)
-    dlog('[CharacterInfo] Character identifier: ' .. char)
-
     return char
 end
 
@@ -165,41 +145,31 @@ local function loadSkin(side, player)
     clearSkin(side)
 
     if sharedSff == nil then
-        dlog('[CharacterInfo] Aborted: shared SFF is not loaded.')
         return false
     end
 
     local ref = getSelectedRef(player)
 
     if ref == nil then
-        dlog('[CharacterInfo] No selected character reference for P' .. tostring(side))
         return false
     end
 
     local char = getCharacterName(ref)
 
     if char == nil or char == '' or char == 'randomselect' then
-        dlog('[CharacterInfo] Invalid character for P' .. tostring(side))
         return false
     end
-
-    dlog('[CharacterInfo] Character detected: ' .. char .. ' - P' .. tostring(side))
 
     local index = charIndex[char]
 
     if index == nil then
-        dlog('[CharacterInfo] No card registered for identifier: ' .. char)
-        dlog('[CharacterInfo] Add this character to charIndex with its SFF sprite index.')
         return false
     end
-
-    dlog('[CharacterInfo] Card mapping: ' .. char .. ' -> group 0, index ' .. tostring(index))
 
     local animDef = '0,' .. tostring(index) .. ', 0,0, -1'
     local anim = animNew(sharedSff, animDef)
 
     if anim == nil then
-        dlog('[CharacterInfo] Failed to create sprite: ' .. animDef .. ' for ' .. char)
         return false
     end
 
@@ -216,14 +186,10 @@ local function loadSkin(side, player)
     cis.char[side] = char
     cis.anim[side] = anim
 
-    dlog('[CharacterInfo] Card loaded: ' .. char .. ' (index ' .. tostring(index) .. ') - P' .. tostring(side))
-
     return true
 end
 
 local function openInfo(side, player)
-    dlog('[CharacterInfo] X detected - side ' .. tostring(side))
-
     if loadSkin(side, player) then
         cis.open[side] = true
     end
@@ -233,7 +199,6 @@ local function closeInfo(side)
     cis.open[side] = false
     cis.ref[side] = nil
     clearSkin(side)
-    dlog('[CharacterInfo] Card closed - P' .. tostring(side))
 end
 
 local originalSelectMenu = start.f_selectMenu
@@ -241,6 +206,7 @@ local originalSelectMenu = start.f_selectMenu
 local function infoPressed(cmd, player)
     if cmd ~= nil then
         local ok, result = pcall(getInput, cmd, cis.key)
+
         if ok and result then
             return true
         end
@@ -248,6 +214,7 @@ local function infoPressed(cmd, player)
 
     if player ~= nil then
         local ok, result = pcall(getInput, player, cis.key)
+
         if ok and result then
             return true
         end
@@ -333,7 +300,3 @@ hook.add(
         closeInfo(2)
     end
 )
-
-dlog('[CharacterInfo] Shared SFF version loaded')
-dlog('[CharacterInfo] SFF: ' .. cis.sffPath)
-dlog('[CharacterInfo] Registered cards: kfm=1, a-ryu=2')
