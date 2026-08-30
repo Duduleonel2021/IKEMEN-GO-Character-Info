@@ -4,7 +4,8 @@
 -- All character cards are stored in ONE SFF:
 -- external/mods/character_info.sff
 --
--- Add characters by registering their sprite index in charIndex.
+-- Add characters by registering their SFF group and sprite index
+-- in charIndex.
 -- No characters folder is required.
 
 local cis = {
@@ -24,35 +25,48 @@ local cis = {
     anim = {nil, nil},
 }
 
--- Character identifier -> sprite index in GROUP 0.
+-- Character identifier -> SFF group and sprite index.
 --
 -- The identifier is the filename of the character .def, without ".def".
 -- The folder structure is ignored.
 --
+-- Format:
+--   character = {GROUP, INDEX}
+--
 -- Examples:
+--
 --   chars/kfm/kfm.def
---       -> kfm = 1
+--       -> kfm = {0, 1}
 --
 --   chars/A-ryu/A-ryu.def
---       -> ['a-ryu'] = 2
+--       -> ['a-ryu'] = {0, 2}
 --
 --   chars/Anime/CDZ/Seiya/Seiya.def
---       -> seiya = 3
+--       -> seiya = {0, 3}
 --
 --   chars/Capcom/StreetFighter/Ryu/Ryu.def
---       -> ryu = 4
+--       -> ryu = {1, 0}
+--
+--   chars/Capcom/StreetFighter/Ken/Ken.def
+--       -> ken = {2, 6}
+--
+-- The module accepts any valid SFF GROUP and INDEX combination.
 --
 -- All cards are stored in:
 -- external/mods/character_info.sff
 
 local charIndex = {
-    kfm = 1,
-    ['a-ryu'] = 2,
-    seiya = 3,
+    kfm = {0, 1},
+    ['a-ryu'] = {0, 2},
+    seiya = {0, 3},
+    ryu = {1, 0},
+    ken = {2, 6},
 
     -- Add new characters here:
-    -- ryu = 4,
-    -- ken = 5,
+    -- chunli = {3, 0},
+    -- guile = {3, 1},
+    -- akuma = {10, 5},
+    -- example = {600, 2},
 }
 
 local sharedSff = nil
@@ -104,8 +118,9 @@ end
 --   Anime/CDZ/Seiya/Seiya.def         -> seiya
 --   Capcom/StreetFighter/Ryu/Ryu.def  -> ryu
 --
--- The folder structure does not matter. The filename of the .def file
--- becomes the character identifier used in charIndex.
+-- The folder structure does not matter.
+-- The filename of the .def file becomes the character identifier
+-- used in charIndex.
 
 local function getCharacterName(ref)
     if ref == nil then
@@ -160,13 +175,34 @@ local function loadSkin(side, player)
         return false
     end
 
-    local index = charIndex[char]
+    local mapping = charIndex[char]
 
-    if index == nil then
+    if mapping == nil then
         return false
     end
 
-    local animDef = '0,' .. tostring(index) .. ', 0,0, -1'
+    local group = mapping[1]
+    local index = mapping[2]
+
+    if group == nil or index == nil then
+        return false
+    end
+
+    -- Build the animation definition using:
+    -- GROUP, INDEX
+    --
+    -- Example:
+    -- {0, 1}   -> "0,1, 0,0, -1"
+    -- {1, 0}   -> "1,0, 0,0, -1"
+    -- {2, 6}   -> "2,6, 0,0, -1"
+    -- {600, 2} -> "600,2, 0,0, -1"
+
+    local animDef =
+        tostring(group)
+        .. ','
+        .. tostring(index)
+        .. ', 0,0, -1'
+
     local anim = animNew(sharedSff, animDef)
 
     if anim == nil then
