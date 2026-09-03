@@ -33,23 +33,6 @@ local cis = {
 -- Format:
 --   character = {GROUP, INDEX}
 --
--- Examples:
---
---   chars/kfm/kfm.def
---       -> kfm = {0, 1}
---
---   chars/A-ryu/A-ryu.def
---       -> ['a-ryu'] = {0, 2}
---
---   chars/Anime/CDZ/Seiya/Seiya.def
---       -> seiya = {0, 3}
---
---   chars/Capcom/StreetFighter/Ryu/Ryu.def
---       -> ryu = {1, 0}
---
---   chars/Capcom/StreetFighter/Ken/Ken.def
---       -> ken = {2, 6}
---
 -- The module accepts any valid SFF GROUP and INDEX combination.
 --
 -- All cards are stored in:
@@ -57,17 +40,6 @@ local cis = {
 
 local charIndex = {
     kfm = {0, 1},
-    ['a-ryu'] = {0, 2},
-    seiya = {0, 3},
-    ryu = {1, 0},
-    ken = {2, 6},
-    ['tan_ralf-xi final version'] = {9000, 0},
-
-    -- Add new characters here:
-    -- chunli = {3, 0},
-    -- guile = {3, 1},
-    -- akuma = {10, 5},
-    -- example = {600, 2},
 }
 
 local sharedSff = nil
@@ -111,18 +83,6 @@ local function getSelectedRef(player)
     return start.c[player].selRef
 end
 
--- Extract the character identifier from the DEF path used by select.def.
---
--- Examples:
---   kfm.def                           -> kfm
---   A-ryu/A-ryu.def                   -> a-ryu
---   Anime/CDZ/Seiya/Seiya.def         -> seiya
---   Capcom/StreetFighter/Ryu/Ryu.def  -> ryu
---
--- The folder structure does not matter.
--- The filename of the .def file becomes the character identifier
--- used in charIndex.
-
 local function getCharacterName(ref)
     if ref == nil then
         return nil
@@ -143,10 +103,7 @@ local function getCharacterName(ref)
     raw = tostring(raw)
     raw = raw:gsub('\\', '/')
 
-    -- Get only the final filename.
     local filename = raw:match('([^/]+)$') or raw
-
-    -- Remove the .def extension.
     local char = filename:gsub('%.def$', ''):lower()
 
     return char
@@ -189,15 +146,6 @@ local function loadSkin(side, player)
         return false
     end
 
-    -- Build the animation definition using:
-    -- GROUP, INDEX
-    --
-    -- Example:
-    -- {0, 1}   -> "0,1, 0,0, -1"
-    -- {1, 0}   -> "1,0, 0,0, -1"
-    -- {2, 6}   -> "2,6, 0,0, -1"
-    -- {600, 2} -> "600,2, 0,0, -1"
-
     local animDef =
         tostring(group)
         .. ','
@@ -218,9 +166,6 @@ local function loadSkin(side, player)
     animSetFacing(anim, 1)
     animSetWindow(anim, 0, 0, w, h)
 
-    -- Position the card directly at the configured panel coordinates.
-    -- Do not inspect or compensate the SFF sprite axis here.
-    -- The shared SFF is treated as a UI/card image, not as a character sprite.
     animSetPos(
         anim,
         panelX(side),
@@ -330,8 +275,6 @@ local function drawInfo(side)
     animSetWindow(anim, 0, 0, w, h)
     animSetLayerno(anim, 2)
 
-    -- Keep the card at a fixed UI position.
-    -- Do not compensate for the SFF sprite axis.
     animSetPos(
         anim,
         panelX(side),
