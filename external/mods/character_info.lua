@@ -61,6 +61,7 @@ local charIndex = {
     seiya = {0, 3},
     ryu = {1, 0},
     ken = {2, 6},
+    ['tan_ralf-xi final version'] = {9000, 0},
 
     -- Add new characters here:
     -- chunli = {3, 0},
@@ -215,8 +216,32 @@ local function loadSkin(side, player)
     animSetScale(anim, 1, 1)
     animSetLayerno(anim, 2)
     animSetFacing(anim, 1)
-    animSetPos(anim, panelX(side), cis.panel.y)
-    animUpdate(anim)
+    animSetWindow(anim, 0, 0, w, h)
+
+    -- Each SFF sprite has its own axis/offset.
+    -- Compensate for that offset so every card is positioned
+    -- by its visible top-left corner at the intended panel position.
+    local spriteInfo = animGetSpriteInfo(anim)
+
+    if spriteInfo == nil then
+        return false
+    end
+
+    local offsetX = 0
+    local offsetY = 0
+
+    if spriteInfo.Offset ~= nil then
+        offsetX = spriteInfo.Offset[1] or 0
+        offsetY = spriteInfo.Offset[2] or 0
+    end
+
+    animSetPos(
+        anim,
+        panelX(side) - offsetX,
+        cis.panel.y - offsetY
+    )
+
+    animUpdate(anim, true)
 
     cis.ref[side] = ref
     cis.char[side] = char
@@ -313,9 +338,34 @@ local function drawInfo(side)
         return
     end
 
+    local w, h = localcoord()
+
+    animSetLocalcoord(anim, w, h)
+    animSetWindow(anim, 0, 0, w, h)
     animSetLayerno(anim, 2)
-    animSetPos(anim, panelX(side), cis.panel.y)
-    animUpdate(anim)
+
+    -- Keep the card aligned even when its SFF axis is different.
+    local spriteInfo = animGetSpriteInfo(anim)
+
+    if spriteInfo == nil then
+        return
+    end
+
+    local offsetX = 0
+    local offsetY = 0
+
+    if spriteInfo.Offset ~= nil then
+        offsetX = spriteInfo.Offset[1] or 0
+        offsetY = spriteInfo.Offset[2] or 0
+    end
+
+    animSetPos(
+        anim,
+        panelX(side) - offsetX,
+        cis.panel.y - offsetY
+    )
+
+    animUpdate(anim, true)
     animDraw(anim, 2)
 end
 
