@@ -218,27 +218,13 @@ local function loadSkin(side, player)
     animSetFacing(anim, 1)
     animSetWindow(anim, 0, 0, w, h)
 
-    -- Each SFF sprite has its own axis/offset.
-    -- Compensate for that offset so every card is positioned
-    -- by its visible top-left corner at the intended panel position.
-    local spriteInfo = animGetSpriteInfo(anim)
-
-    if spriteInfo == nil then
-        return false
-    end
-
-    local offsetX = 0
-    local offsetY = 0
-
-    if spriteInfo.Offset ~= nil then
-        offsetX = spriteInfo.Offset[1] or 0
-        offsetY = spriteInfo.Offset[2] or 0
-    end
-
+    -- Position the card directly at the configured panel coordinates.
+    -- Do not inspect or compensate the SFF sprite axis here.
+    -- The shared SFF is treated as a UI/card image, not as a character sprite.
     animSetPos(
         anim,
-        panelX(side) - offsetX,
-        cis.panel.y - offsetY
+        panelX(side),
+        cis.panel.y
     )
 
     animUpdate(anim, true)
@@ -344,25 +330,12 @@ local function drawInfo(side)
     animSetWindow(anim, 0, 0, w, h)
     animSetLayerno(anim, 2)
 
-    -- Keep the card aligned even when its SFF axis is different.
-    local spriteInfo = animGetSpriteInfo(anim)
-
-    if spriteInfo == nil then
-        return
-    end
-
-    local offsetX = 0
-    local offsetY = 0
-
-    if spriteInfo.Offset ~= nil then
-        offsetX = spriteInfo.Offset[1] or 0
-        offsetY = spriteInfo.Offset[2] or 0
-    end
-
+    -- Keep the card at a fixed UI position.
+    -- Do not compensate for the SFF sprite axis.
     animSetPos(
         anim,
-        panelX(side) - offsetX,
-        cis.panel.y - offsetY
+        panelX(side),
+        cis.panel.y
     )
 
     animUpdate(anim, true)
